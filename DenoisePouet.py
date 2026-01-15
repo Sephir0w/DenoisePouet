@@ -5,6 +5,7 @@ os.environ["QT_API"] = "pyside6"
 
 from pathlib import Path
 from typing import Dict, Tuple
+import subprocess
 
 import qtawesome as qta
 from qtpy.QtWidgets import (
@@ -38,8 +39,8 @@ from qtpy.QtGui import QColor, QIcon, QMovie
 from fxgui import fxwidgets, fxutils, fxdcc, fxstyle
 from fxgui.fxicons import get_icon
 
-import cv2 as cv
-import time
+#import cv2 as cv
+#import time
 
 rmantree = os.environ.get("RMANTREE")
 sys.path.append(f"{rmantree}/bin")
@@ -64,7 +65,7 @@ class DenoisePouetUI(QMainWindow):
 	
 		self.window = fxwidgets.FXMainWindow(
 			project="denoisePouet",
-			version="0.0.1",
+			version="0.0.2",
 			company="\u00A9 P.Kervaut",
 			ui_file=str(self.uiPathMainUi),
 			)
@@ -186,7 +187,7 @@ class DenoisePouetUI(QMainWindow):
 			lvl=fxwidgets.SUCCESS
 			self.window.statusBar().showMessage(msg, lvl)
 
-		else : 
+		elif self.switchLocal.currentIndex() == 1: 
 
 			print("start in local")
 
@@ -213,6 +214,26 @@ class DenoisePouetUI(QMainWindow):
 		
 			self.thread.start()
 
+		elif self.switchLocal.currentIndex() == 2:
+
+			print("start in deadline")
+
+			self.denoiser.updateImagesList(self.filePathInput_var.text(), animation)
+			directory = self.denoiser.defReturnDirectory(self.filePathInput_var.text())
+			self.waitingScreen = WaitingScreen(mode="deadline")
+
+			# Submit all frames to Deadline
+			self.denoiser.submitDeadlineDenoise(self.crossedFrame_var, directory, self.title_var.text(), self.projectName_var.text(), self.maxActive_var.text())
+			print("Folder Path:", self.filePathInput_var.text())
+			print("Title:", self.title_var.text())
+			print("Project:", self.projectName_var.text())
+			print("Checkbox State:", self.crossedFrame_var)
+			print("maxActive:", self.maxActive_var.text())
+
+			msg = "denoise deadline submitted"
+			lvl = fxwidgets.SUCCESS
+			self.window.statusBar().showMessage(msg, lvl)
+
 
 class WaitingScreen():
 
@@ -231,7 +252,7 @@ class WaitingScreen():
 
 		self.windowLoad = fxwidgets.FXMainWindow(
 			project="denoisePouet",
-			version="0.0.1",
+			version="0.0.2",
 			company="\u00A9 P.Kervaut",
 			ui_file=str(self.uiPathLoadingUI),
 			)
@@ -451,7 +472,27 @@ class TractorDenoiser:
 			os.system(f"denoise_batch -o {directory}denoised -cf {cross} {frame}")
 			count +=1
 			yield frame
-		
+
+	def submitDeadlineDenoise(self, title, frame, cross, project, directory):
+		# Chemin complet de l'exécutable DeadlineCommand
+		deadline_executable = r"C:\Program Files\Thinkbox\Deadline10\bin\deadlinecommand.exe"
+
+		# Parcours toutes les images
+		for frame in self.render_list:
+			# Construire la commande Deadline
+			deadline_cmd = [
+				deadline_executable,
+				"-SubmitCommandLineJob",
+				"-executable", "denoise_batch",
+				"-arguments", f'-o "{directory}/denoised" --crossframe {cross} "{frame}"',
+				"-name", f"> DENOISE < {title}",
+				"-priority", "100",
+			]
+
+			# Soumettre le job
+			subprocess.run(deadline_cmd, shell=False)
+
+
 class LocalDenoiseWorker(QObject):
 
 	progress = Signal(int, int, str)  # count, total, frame
@@ -482,3 +523,4 @@ if __name__ == "__main__":
 
 	window = DenoisePouetUI()
 	sys.exit(app.exec_())
+
