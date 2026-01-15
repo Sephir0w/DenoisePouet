@@ -180,6 +180,11 @@
            <string>Local</string>
           </property>
          </item>
+         <item>
+          <property name="text">
+           <string>Deadline</string>
+          </property>
+         </item>
         </widget>
        </item>
        <item>
